@@ -124,7 +124,7 @@ The model was evaluated using standard object detection metrics:
 
 ### Dashboard
 
-![Dashboard](static/dashboard.html)
+![Dashboard](static/dashboard.png)
 
 ### Detection Result
 
