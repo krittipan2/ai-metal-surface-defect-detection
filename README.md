@@ -132,7 +132,7 @@ The model was evaluated using standard object detection metrics:
 
 ### Statistics
 
-![Statistics](screenshots/statistics.png)
+![Statistics](static/das.png)
 
 
 ## Future Improvements
