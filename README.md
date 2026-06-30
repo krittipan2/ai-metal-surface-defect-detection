@@ -128,7 +128,7 @@ The model was evaluated using standard object detection metrics:
 
 ### Detection Result
 
-![Detection](screenshots/detection.png)
+![Detection](20260615_080527_s1.jpg)
 
 ### Statistics
 
