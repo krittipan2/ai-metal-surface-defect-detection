@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Smart Factory Vision System</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root {
+    --bg:#0b1220;
+    --panel:#111827;
+    --border:#1f2937;
+    --text:#e5e7eb;
+    --muted:#9ca3af;
+    --blue:#3b82f6;
+    --green:#22c55e;
+    --red:#ef4444;
+}
+body { margin:0; font-family:"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
+
+.header { padding:18px; text-align:center; font-size:24px; font-weight:bold; border-bottom:1px solid var(--border); }
+
+.status-box { text-align:center; font-size:26px; padding:14px; margin:16px; border-radius:12px; font-weight:bold; }
+.ok { background:rgba(34,197,94,0.15); color:var(--green); }
+.ng { background:rgba(239,68,68,0.15); color:var(--red); }
+
+.stats-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; padding:0 16px; }
+.stat-card { background:var(--panel); border:1px solid var(--border); padding:16px; border-radius:12px; text-align:center; }
+.stat-card h3 { margin:0; font-size:12px; color:var(--muted); }
+
+.video-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:16px; align-items:start; }
+.video-box { background:var(--panel); border:1px solid var(--border); padding:10px; border-radius:12px; height:320px; display:flex; flex-direction:column; }
+.video-box h3 { font-size:12px; color:var(--muted); margin-bottom:8px; }
+.video-box img { width:100%; height:100%; object-fit:cover; border-radius:8px; }
+
+.bottom-section { display:grid; grid-template-columns:340px 1fr; gap:16px; padding:16px; align-items:start; }
+
+.control-item { background:#0f172a; padding:10px; border-radius:8px; border:1px solid var(--border); margin-bottom:10px; }
+.control-item label { font-size:12px; color:var(--muted); display:block; margin-bottom:2px; }
+.control-item input[type=range] { width:100%; accent-color:#3b82f6; }
+
+select { width:100%; padding:8px; border-radius:8px; background:#111827; color:#e5e7eb; border:1px solid #1f2937; margin-top:6px; }
+
+span { color:var(--blue); font-weight:bold; }
+
+.side-card { background:var(--panel); border:1px solid var(--border); padding:12px; border-radius:10px; margin-bottom:12px; }
+.side-card h3 { font-size:13px; color:var(--muted); margin:0 0 10px 0; }
+
+.ng-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+.ng-item { position:relative; background:#000; border-radius:6px; overflow:hidden; cursor:pointer; }
+.ng-item img { width:100%; height:100px; object-fit:cover; }
+.ng-label { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.7); font-size:10px; padding:2px 4px; }
+
+/* ROI sliders */
+.roi-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px; }
+.roi-item label { font-size:11px; color:var(--muted); }
+.roi-item input { width:100%; accent-color:#f59e0b; }
+
+.btn { background:#1f2937; color:#e5e7eb; border:1px solid #374151; padding:5px 12px; border-radius:6px; font-size:12px; cursor:pointer; }
+.btn:hover { background:#374151; }
+.btn-green { border-color:#22c55e; color:#22c55e; }
+.btn-red   { border-color:#ef4444; color:#ef4444; }
+</style>
+</head>
+<body>
+
+<div class="header"> Defect Inspection System</div>
+<div id="statusBox" class="status-box ok">STATUS: OK</div>
+
+<!-- STATS -->
+<div class="stats-grid">
+    <div class="stat-card"><h3>Total Defects</h3><h1 id="totalDefects">0</h1></div>
+    <div class="stat-card"><h3>Defects</h3><h1 id="detectedDefects" style="font-size:30px">None</h1></div>
+    <div class="stat-card"><h3>Confidence</h3><h1 id="confidenceValue">0%</h1></div>
+    <div class="stat-card"><h3>FPS</h3><h1 id="fpsValue">0</h1></div>
+    <div class="stat-card"><h3>Inference Time</h3><h1 id="inferenceTime">0</h1></div>
+</div>
+
+<!-- VIDEO -->
+<div class="video-grid">
+    <div class="video-box">
+        <h3>Raw Camera <span style="font-size:10px;color:#6b7280;">(คลิกเพื่อขยาย)</span></h3>
+        <img id="rawFeed" src="/video_raw" onclick="openVideoModal('/video_raw')" style="cursor:pointer;">
+    </div>
+    <div class="video-box">
+        <h3>Object Detection <span style="font-size:10px;color:#6b7280;">(คลิกเพื่อขยาย)</span></h3>
+        <img id="detectFeed" src="/video_detect" onclick="openVideoModal('/video_detect')" style="cursor:pointer;">
+    </div>
+    <div class="video-box">
+        <h3>Edge Detection <span style="font-size:10px;color:#6b7280;">(คลิกเพื่อขยาย)</span></h3>
+        <img id="edgeFeed" src="/video_edge" onclick="openVideoModal('/video_edge')" style="cursor:pointer;">
+    </div>
+</div>
+
+<!-- Video Modal -->
+<div id="videoModal" onclick="closeVideoModal()" style="
+    display:none; position:fixed; top:0; left:0;
+    width:100%; height:100%; background:rgba(0,0,0,0.92);
+    justify-content:center; align-items:center; z-index:1000; flex-direction:column;">
+    <div style="position:relative; width:90vw; max-width:1280px;">
+        <img id="modalVideoFeed" style="width:100%; border-radius:10px; display:block;">
+        <button onclick="closeVideoModal()" style="
+            position:absolute; top:-36px; right:0;
+            background:transparent; border:none; color:#fff;
+            font-size:28px; cursor:pointer; line-height:1;">✕</button>
+    </div>
+    <p style="color:#6b7280; font-size:12px; margin-top:10px;">คลิกที่ใดก็ได้เพื่อปิด</p>
+</div>
+
+<!-- BOTTOM -->
+<div class="bottom-section">
+
+    <!-- LEFT: Controls -->
+    <div>
+
+        <!-- Preset & Camera -->
+        <div class="control-item">
+            <label>Inspection Preset</label>
+            <select id="presetSelect">
+                <option value="default">Default</option>
+                <option value="spot">Spot</option>
+                <option value="scratch">Scratch</option>
+                <option value="orange_peel">Orange Peel</option>
+                <option value="stain">Stain</option>
+            </select>
+            <label style="margin-top:8px;">Camera Select</label>
+            <select id="cameraSelect">
+                <option value="0">Camera 0</option>
+                <option value="1">Camera 1</option>
+            </select>
+        </div>
+
+        <!-- Edge -->
+        <div class="control-item">
+            <label>Edge Threshold 1: <span id="edgeVal1">100</span></label>
+            <input type="range" min="0" max="300" value="100" id="t1">
+            <label>Edge Threshold 2: <span id="edgeVal2">200</span></label>
+            <input type="range" min="0" max="300" value="200" id="t2">
+        </div>
+
+        <!-- Confidence -->
+        <div class="control-item">
+            <label>Confidence: <span id="confVal">0.75</span></label>
+            <input type="range" min="0.1" max="0.9" step="0.05" value="0.75" id="confSlider">
+        </div>
+
+        <!-- Brightness / Contrast -->
+        <div class="control-item">
+            <label>Brightness: <span id="brightValue">0</span></label>
+            <input type="range" min="-100" max="100" value="0" id="brightSlider">
+            <label>Contrast: <span id="contrastValue">1.0</span></label>
+            <input type="range" min="0.5" max="3" step="0.1" value="1" id="contrastSlider">
+        </div>
+
+        <!-- ROI -->
+        <div class="control-item">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <label style="margin:0; font-size:13px; color:var(--text);">📐 ROI (พื้นที่ตรวจ)</label>
+                <div style="display:flex; gap:6px;">
+                    <button id="labelToggleBtn" class="btn btn-green" onclick="toggleLabels()">🏷️ Label ON</button>
+                    <button id="roiToggleBtn" class="btn btn-green" onclick="toggleROI()">✅ ON่</button>
+                </div>
+            </div>
+            <div class="roi-grid">
+                <div class="roi-item">
+                    <label>X1 ซ้าย: <span id="roiX1Val">80</span></label>
+                    <input type="range" min="0" max="1270" value="160" id="roiX1" oninput="updateROI()">
+
+                </div>
+                <div class="roi-item">
+                    <label>Y1 บน: <span id="roiY1Val">60</span></label>
+                    <input type="range" min="0" max="950"  value="120" id="roiY1" oninput="updateROI()">
+
+                </div>
+                <div class="roi-item">
+                    <label>X2 ขวา: <span id="roiX2Val">560</span></label>
+                    <input type="range" min="20" max="1280" value="1120" id="roiX2" oninput="updateROI()">
+
+                </div>
+                <div class="roi-item">
+                    <label>Y2 ล่าง: <span id="roiY2Val">420</span></label>
+                    <input type="range" min="20" max="960"  value="840"  id="roiY2" oninput="updateROI()">
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- RIGHT: Gallery + Chart -->
+    <div>
+
+        <!-- NG Gallery -->
+        <div class="side-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3 style="margin:0">📸 NG Gallery</h3>
+                <button class="btn" onclick="openNgFolder()">📁 open Folder</button>
+            </div>
+            <div id="ngGallery" class="ng-grid"></div>
+        </div>
+
+        <!-- Defect Chart -->
+        <div class="side-card">
+            <h3>📊 Defect Summary</h3>
+            <div id="chartLegend" style="margin-bottom:8px;"></div>
+            <canvas id="chart" height="110"></canvas>
+        </div>
+
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div id="imgModal" onclick="this.style.display='none'" style="
+    display:none; position:fixed; top:0; left:0;
+    width:100%; height:100%; background:rgba(0,0,0,0.85);
+    justify-content:center; align-items:center; z-index:999;">
+    <img id="modalImg" style="max-width:90%; max-height:90%; border-radius:10px;">
+</div>
+
+<script>
+let chart;
+
+/* ---------------- INIT ---------------- */
+window.onload = function() {
+    const ctx = document.getElementById('chart');
+    chart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: [], datasets: [] },
+        options: {
+            responsive: true,
+            animation: false,
+            plugins: { legend: { labels: { color: '#e5e7eb' } } },
+            scales: {
+                x: { ticks: { color: '#9ca3af' }, grid: { color: '#1f2937' } },
+                y: { ticks: { color: '#9ca3af' }, grid: { color: '#1f2937' } }
+            }
+        }
+    });
+
+    loadConfig();
+    loadROI();
+    loadLabelState();
+};
+
+/* ---------------- LOAD CONFIG (โหลดค่าเดิมจาก backend) ---------------- */
+async function loadConfig() {
+    try {
+        // โหลด brightness, contrast, conf
+        const live = await (await fetch('/api/live_data')).json();
+        // โหลด ROI
+        const roi  = await (await fetch('/api/get_roi')).json();
+
+        // ดึงค่า conf จาก backend ผ่าน get_roi response ไม่มี conf
+        // ใช้ endpoint get_config แทน
+        const cfg  = await (await fetch('/api/get_config')).json();
+
+        document.getElementById("brightSlider").value   = cfg.brightness;
+        document.getElementById("contrastSlider").value = cfg.contrast;
+        document.getElementById("confSlider").value     = cfg.conf;
+        document.getElementById("brightValue").innerText   = cfg.brightness;
+        document.getElementById("contrastValue").innerText = cfg.contrast;
+        document.getElementById("confVal").innerText       = cfg.conf;
+
+        console.log("✅ Config loaded:", cfg);
+    } catch(e) {
+        console.log("Config load:", e);
+    }
+}
+
+/* ---------------- EDGE ---------------- */
+document.getElementById("t1").oninput = updateEdge;
+document.getElementById("t2").oninput = updateEdge;
+
+function updateEdge() {
+    const t1 = document.getElementById("t1").value;
+    const t2 = document.getElementById("t2").value;
+    document.getElementById("edgeVal1").innerText = t1;
+    document.getElementById("edgeVal2").innerText = t2;
+    document.getElementById("edgeFeed").src = `/video_edge?t1=${t1}&t2=${t2}&t=${Date.now()}`;
+}
+
+/* ---------------- CONF ---------------- */
+document.getElementById("confSlider").oninput = async function() {
+    document.getElementById("confVal").innerText = this.value;
+    await fetch(`/api/set_conf?value=${this.value}`);
+};
+
+/* ---------------- BRIGHTNESS ---------------- */
+document.getElementById("brightSlider").oninput = async function() {
+    document.getElementById("brightValue").innerText = this.value;
+    await fetch(`/api/set_brightness?value=${this.value}`);
+};
+
+/* ---------------- CONTRAST ---------------- */
+document.getElementById("contrastSlider").oninput = async function() {
+    document.getElementById("contrastValue").innerText = this.value;
+    await fetch(`/api/set_contrast?value=${this.value}`);
+};
+
+/* ---------------- CAMERA ---------------- */
+document.getElementById("cameraSelect").onchange = async function() {
+    await fetch(`/api/set_camera?index=${this.value}`);
+    document.querySelectorAll("img").forEach(img => {
+        if (img.src.includes("/video_")) {
+            img.src = img.src.split('?')[0] + "?t=" + Date.now();
+        }
+    });
+};
+
+/* ---------------- PRESET ---------------- */
+document.getElementById("presetSelect").onchange = async function() {
+    const res  = await fetch(`/api/set_preset?name=${this.value}`);
+    const data = await res.json();
+    document.getElementById("brightSlider").value   = data.brightness;
+    document.getElementById("contrastSlider").value = data.contrast;
+    document.getElementById("confSlider").value     = data.conf;
+    document.getElementById("brightValue").innerText   = data.brightness;
+    document.getElementById("contrastValue").innerText = data.contrast;
+    document.getElementById("confVal").innerText       = data.conf;
+};
+
+/* ---------------- STATUS ---------------- */
+async function fetchStatus() {
+    try {
+        const data = await (await fetch('/api/status')).json();
+        const box  = document.getElementById("statusBox");
+        if (data.status === "OK") {
+            box.className = "status-box ok";
+            box.innerText = "STATUS: OK ✅";
+        } else {
+            box.className = "status-box ng";
+            box.innerText = "STATUS: NG ❌";
+        }
+    } catch(e) {}
+}
+
+/* ---------------- LIVE DATA ---------------- */
+async function updateLiveData() {
+    try {
+        const data = await (await fetch('/api/live_data')).json();
+        document.getElementById("totalDefects").innerText    = data.total_defects;
+        document.getElementById("inferenceTime").innerText   = data.inference_time;
+        document.getElementById("fpsValue").innerText        = data.fps;
+        document.getElementById("detectedDefects").innerText = data.detected_defects.length ? data.detected_defects.join(", ") : "None";
+        document.getElementById("confidenceValue").innerText = data.confidence + "%";
+    } catch(e) {}
+}
+
+/* ---------------- NG GALLERY ---------------- */
+async function loadGallery() {
+    try {
+        const data      = await (await fetch('/api/ng_gallery')).json();
+        const container = document.getElementById("ngGallery");
+        container.innerHTML = "";
+        data.forEach(item => {
+            const div = document.createElement("div");
+            div.className = "ng-item";
+            div.innerHTML = `
+                <img src="${item.img}?t=${Date.now()}" onclick="openImage('${item.img}')">
+                <div class="ng-label">${item.defects}<br>${item.time}</div>
+            `;
+            container.appendChild(div);
+        });
+    } catch(e) {}
+}
+
+/* ---------------- CHART ---------------- */
+async function updateChart() {
+    if (!chart) return;
+    try {
+        const data   = await (await fetch('/api/defect_summary')).json();
+        const labels = Object.keys(data);
+        const values = Object.values(data);
+        const colorMap = {
+            scratch:     "#ef4444",
+            spot:        "#f59e0b",
+            stain:       "#3b82f6",
+            orange_peel: "#22c55e"
+        };
+        const labelTH = {
+            scratch:     "Scratch (รอยขีด)",
+            spot:        "Spot (จุด)",
+            stain:       "Stain (คราบ)",
+            orange_peel: "Orange Peel (ผิวส้ม)"
+        };
+
+        chart.data.labels   = labels.map(d => labelTH[d] || d);
+        chart.data.datasets = [{
+            label:           "จำนวน",
+            data:            values,
+            backgroundColor: labels.map(d => colorMap[d] || "#888"),
+            borderRadius:    6,
+            barPercentage:   0.6,
+            categoryPercentage: 0.6
+        }];
+
+        // legend แบบ custom สีตรงกับแท่ง
+        chart.options.plugins.legend.display = false;
+        chart.options.plugins.tooltip.callbacks = {
+            title: (items) => items[0].label,
+            label: (item)  => ` จำนวน: ${item.raw}`
+        };
+
+        // วาด legend เองใต้ชื่อ
+        const legendEl = document.getElementById("chartLegend");
+        if (legendEl) {
+            legendEl.innerHTML = labels.map(d => `
+                <span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;">
+                    <span style="width:12px;height:12px;border-radius:3px;background:${colorMap[d]||'#888'};display:inline-block;"></span>
+                    <span style="font-size:11px;color:#9ca3af;">${labelTH[d]||d}</span>
+                </span>
+            `).join("");
+        }
+
+        chart.update();
+    } catch(e) {}
+}
+
+/* ---------------- POPUP ---------------- */
+function openImage(src) {
+    document.getElementById("modalImg").src = src + "?t=" + Date.now();
+    document.getElementById("imgModal").style.display = "flex";
+}
+
+/* ---------------- VIDEO MODAL ---------------- */
+function openVideoModal(src) {
+    document.getElementById("modalVideoFeed").src = src;
+    document.getElementById("videoModal").style.display = "flex";
+}
+function closeVideoModal() {
+    const modal = document.getElementById("videoModal");
+    modal.style.display = "none";
+    document.getElementById("modalVideoFeed").src = "";
+}
+
+/* ---------------- OPEN FOLDER ---------------- */
+async function openNgFolder() {
+    await fetch('/api/open_ng_folder');
+}
+
+/* ---------------- ROI ---------------- */
+async function updateROI() {
+    const x1 = document.getElementById("roiX1").value;
+    const y1 = document.getElementById("roiY1").value;
+    const x2 = document.getElementById("roiX2").value;
+    const y2 = document.getElementById("roiY2").value;
+    document.getElementById("roiX1Val").innerText = x1;
+    document.getElementById("roiY1Val").innerText = y1;
+    document.getElementById("roiX2Val").innerText = x2;
+    document.getElementById("roiY2Val").innerText = y2;
+    await fetch(`/api/set_roi?x1=${x1}&y1=${y1}&x2=${x2}&y2=${y2}`);
+}
+
+async function toggleLabels() {
+    const res  = await fetch('/api/toggle_labels');
+    const data = await res.json();
+    const btn  = document.getElementById("labelToggleBtn");
+    if (data.show_labels) {
+        btn.innerText = "🏷️ Label ON";
+        btn.className = "btn btn-green";
+    } else {
+        btn.innerText = "🏷️ Label OFF";
+        btn.className = "btn btn-red";
+    }
+}
+
+async function toggleROI() {
+    const res  = await fetch('/api/toggle_roi');
+    const data = await res.json();
+    const btn  = document.getElementById("roiToggleBtn");
+    if (data.enabled) {
+        btn.innerText = "✅ เปิดอยู่";
+        btn.className = "btn btn-green";
+    } else {
+        btn.innerText = "⛔ ปิดอยู่";
+        btn.className = "btn btn-red";
+    }
+}
+
+async function loadLabelState() {
+    try {
+        const res  = await fetch('/api/get_show_labels');
+        const data = await res.json();
+        const btn  = document.getElementById("labelToggleBtn");
+        if (data.show_labels) {
+            btn.innerText = "🏷️ Label ON";
+            btn.className = "btn btn-green";
+        } else {
+            btn.innerText = "🏷️ Label OFF";
+            btn.className = "btn btn-red";
+        }
+    } catch(e) {}
+}
+
+async function loadROI() {
+    try {
+        const res  = await fetch('/api/get_roi');
+        const data = await res.json();
+        const [x1, y1, x2, y2] = data.roi;
+        document.getElementById("roiX1").value = x1;
+        document.getElementById("roiY1").value = y1;
+        document.getElementById("roiX2").value = x2;
+        document.getElementById("roiY2").value = y2;
+        document.getElementById("roiX1Val").innerText = x1;
+        document.getElementById("roiY1Val").innerText = y1;
+        document.getElementById("roiX2Val").innerText = x2;
+        document.getElementById("roiY2Val").innerText = y2;
+        const btn = document.getElementById("roiToggleBtn");
+        if (data.enabled) {
+            btn.innerText = "✅ ON";
+            btn.className = "btn btn-green";
+        } else {
+            btn.innerText = "⛔ OFF";
+            btn.className = "btn btn-red";
+        }
+    } catch(e) {}
+}
+
+/* ---------------- LOOP ---------------- */
+setInterval(fetchStatus,    1500);
+setInterval(updateLiveData, 1500);
+setInterval(loadGallery,    5000);
+setInterval(updateChart,    8000);
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "brightness": 8,
+  "contrast": 1.7,
+  "conf": 0.5,
+  "roi": [
+    398,
+    0,
+    1157,
+    840
+  ],
+  "roi_enabled": true
+}
